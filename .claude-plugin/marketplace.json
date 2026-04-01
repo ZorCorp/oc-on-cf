@@ -1,0 +1,32 @@
+{
+  "name": "oc-on-cf",
+  "owner": {
+    "name": "ZorCorp"
+  },
+  "metadata": {
+    "description": "Deploy OpenClaw on Cloudflare Workers + Containers with a bundled moltworker project",
+    "version": "1.0.0",
+    "repository": "https://github.com/ZorCorp/oc-on-cf",
+    "keywords": [
+      "openclaw",
+      "cloudflare",
+      "workers",
+      "telegram",
+      "deployment"
+    ]
+  },
+  "plugins": [
+    {
+      "name": "oc-on-cf",
+      "description": "Install the OpenClaw on Cloudflare deployment skill and use /deploy-openclaw",
+      "source": "./",
+      "strict": false,
+      "commands": [
+        "./commands/deploy-openclaw.md"
+      ],
+      "skills": [
+        "./"
+      ]
+    }
+  ]
+}

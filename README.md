@@ -1,8 +1,45 @@
-# Deploy OpenClaw
+# OC on CF
 
 ## What is this?
 
-An **AI Skill** that automatically deploys an [OpenClaw](https://github.com/openclaw/openclaw) AI Bot on [Cloudflare](https://cloudflare.com). Give your AI agent (Claude Code, Claude Desktop, or OpenClaw itself) the `SKILL.md` file, and it handles everything — from installing tools to deploying your bot.
+An **AI Skill** that automatically deploys an [OpenClaw](https://github.com/openclaw/openclaw) AI Bot on [Cloudflare](https://cloudflare.com). Install the `oc-on-cf` skill, then run `/deploy-openclaw` to let your agent handle everything — from installing tools to deploying your bot.
+
+## Install
+
+### Option A — npm via zorskills (recommended)
+
+Installs `oc-on-cf` alongside all ZorCorp skills and symlinks them into every agent on your machine.
+
+```bash
+npm install -g @zorcorp/zorskills
+```
+
+Available immediately in:
+
+- Claude Code — invoke as `/deploy-openclaw`
+- OpenClaw — agent picks up on next restart
+
+Update:
+
+```bash
+npm update -g @zorcorp/zorskills
+```
+
+### Option B — Claude Code Marketplace
+
+In Claude Code:
+
+```text
+/plugin marketplace add ZorCorp/oc-on-cf
+/plugin install oc-on-cf
+/plugin list
+```
+
+Then run:
+
+```text
+/deploy-openclaw
+```
 
 ## What do you get?
 
@@ -34,17 +71,7 @@ After deployment, you have:
 
 Anyone who wants their own AI bot but doesn't want to deal with infrastructure. You don't need to know how to code, use a terminal, or understand cloud services. Just talk to your AI agent and it handles the rest.
 
-## How it works
-
-```
-You:  "Deploy a new AI bot for me"
-AI:   Installing tools... creating resources... deploying...
-AI:   "Done! Send 'hi' to your bot on Telegram."
-You:  "hi"
-Bot:  "Hey! I'm your new AI assistant. How can I help?"
-```
-
-The AI reads `SKILL.md` and follows 10 steps:
+The AI runs `/deploy-openclaw` and follows 10 steps:
 
 | Step | What happens | Who does it |
 |------|-------------|-------------|
@@ -144,25 +171,29 @@ Three zones — Users (left), Cloudflare (middle), Internet (right) — with sec
 
 ### As an OpenClaw Skill
 
-Copy this folder to your OpenClaw skills directory. Then ask your agent:
+Install `oc-on-cf` through `zorskills`, then run:
 
-> "Deploy a new OpenClaw bot"
+> `/deploy-openclaw`
 
 ### With Claude Code or Claude Desktop
 
-Point the AI to `SKILL.md` and say:
+Install `oc-on-cf` and run:
 
-> "Follow the instructions in SKILL.md to deploy a new OpenClaw bot"
+> `/deploy-openclaw`
 
 ### Manual
 
-Read `SKILL.md` for the complete step-by-step commands. Every command is documented — you can run them yourself if needed.
+Read `commands/deploy-openclaw.md` for the complete step-by-step commands. Every command is documented — you can run them yourself if needed.
 
 ## File structure
 
 ```
-deploy-openclaw/
-├── SKILL.md              ← Instructions for the AI agent (the brain)
+oc-on-cf/
+├── .claude-plugin/
+│   └── marketplace.json  ← Claude Code Marketplace bundle
+├── commands/
+│   └── deploy-openclaw.md← Slash command workflow
+├── SKILL.md              ← Skill entry point
 ├── README.md             ← You are here
 └── moltworker/           ← Pre-configured source code (no git clone needed)
     ├── Dockerfile        ← Container: Node 22.16.0 + OpenClaw 2026.3.13
@@ -184,7 +215,7 @@ deploy-openclaw/
 | **Container** | Full Linux environment — where OpenClaw actually runs |
 | **AI Gateway** | Cloudflare proxy for AI requests — adds logging and protection |
 | **R2** | Cloudflare object storage — keeps your data when container sleeps |
-| **SKILL.md** | Instructions file that AI agents read and execute |
+| **SKILL.md** | Skill entry point that packages the deployment workflow |
 
 ## Versions
 
