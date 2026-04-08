@@ -155,7 +155,7 @@ Store as `{TELEGRAM_TOKEN}`.
 
 Ask user:
 
-> Which AI model? (Enter for default: `@cf/nvidia/nemotron-3-120b-a12b`)
+> Which AI model? (Enter for default: `@cf/google/gemma-4-26b-a4b-it`)
 
 Store as `{USER_MODEL}`.
 

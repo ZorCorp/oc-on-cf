@@ -193,7 +193,7 @@ if (process.env.WORKER_URL) {
 // AI Gateway model override (CF_AI_GATEWAY_MODEL=provider/model-id)
 // Adds a provider entry for any AI Gateway provider and sets it as default model.
 // Examples:
-//   workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast
+//   workers-ai/@cf/google/gemma-4-26b-a4b-it
 //   openai/gpt-4o
 //   anthropic/claude-sonnet-4-5
 if (process.env.CF_AI_GATEWAY_MODEL) {
