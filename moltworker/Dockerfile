@@ -1,8 +1,7 @@
 FROM docker.io/cloudflare/sandbox:0.7.0
 
 # Install Node.js 22 (required by OpenClaw) and rclone (for R2 persistence)
-# The base image has Node 20, we need to replace it with Node 22
-# Using direct binary download for reliability
+# Also install Chrome dependencies for agent-browser
 ENV NODE_VERSION=22.16.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && case "${ARCH}" in \
@@ -10,7 +9,11 @@ RUN ARCH="$(dpkg --print-architecture)" \
          arm64) NODE_ARCH="arm64" ;; \
          *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
        esac \
-    && apt-get update && apt-get install -y xz-utils ca-certificates rclone \
+    && apt-get update && apt-get install -y \
+       xz-utils ca-certificates rclone python3 \
+       libgconf-2-4 libnss3 libxss1 libasound2 libatk-bridge2.0-0 \
+       libgtk-3-0 libx11-xcb1 libgbm1 libdrm2 libxshmfence1 \
+       --no-install-recommends \
     && curl -fsSLk https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz -o /tmp/node.tar.xz \
     && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
     && rm /tmp/node.tar.xz \
@@ -22,8 +25,22 @@ RUN npm install -g pnpm
 
 # Install OpenClaw (formerly clawdbot/moltbot)
 # Pin to specific version for reproducible builds
-RUN npm install -g openclaw@2026.3.13 \
+RUN npm install -g openclaw@2026.4.7 \
     && openclaw --version
+
+# Install gws CLI (Google Workspace) and agent-browser
+RUN npm install -g @googleworkspace/cli agent-browser
+
+# Install Chrome for Testing (baked into image, no download at runtime)
+RUN agent-browser install
+
+# Install gcloud CLI
+RUN curl -fsSL https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz \
+    -o /tmp/gcloud.tar.gz \
+    && tar -xzf /tmp/gcloud.tar.gz -C /opt \
+    && /opt/google-cloud-sdk/install.sh --quiet --path-update=true \
+    && rm /tmp/gcloud.tar.gz
+ENV PATH="/opt/google-cloud-sdk/bin:$PATH"
 
 # Create OpenClaw directories
 # Legacy .clawdbot paths are kept for R2 backup migration
@@ -32,7 +49,7 @@ RUN mkdir -p /root/.openclaw \
     && mkdir -p /root/clawd/skills
 
 # Copy startup script
-# Build cache bust: 2026-02-11-v30-rclone
+# Build cache bust: 2026-04-08-v31-tools
 COPY start-openclaw.sh /usr/local/bin/start-openclaw.sh
 RUN chmod +x /usr/local/bin/start-openclaw.sh
 

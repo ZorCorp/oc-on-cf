@@ -94,6 +94,17 @@ if r2_configured; then
         rclone copy "r2:${R2_BUCKET}/skills/" "$SKILLS_DIR/" $RCLONE_FLAGS -v 2>&1 || echo "WARNING: skills restore failed with exit code $?"
         echo "Skills restored"
     fi
+
+    # Restore .config (gcloud, gws, chrome profile, etc.)
+    # Exclude rclone/ to avoid overwriting the rclone.conf we just wrote above
+    REMOTE_DC_COUNT=$(rclone ls "r2:${R2_BUCKET}/dot-config/" $RCLONE_FLAGS 2>/dev/null | wc -l)
+    if [ "$REMOTE_DC_COUNT" -gt 0 ]; then
+        echo "Restoring .config from R2 ($REMOTE_DC_COUNT files)..."
+        mkdir -p /root/.config
+        rclone copy "r2:${R2_BUCKET}/dot-config/" "/root/.config/" $RCLONE_FLAGS \
+            --exclude='rclone/**' -v 2>&1 || echo "WARNING: .config restore failed with exit code $?"
+        echo ".config restored"
+    fi
 else
     echo "R2 not configured, starting fresh"
 fi
@@ -272,42 +283,82 @@ EOFPATCH
 # ============================================================
 # BACKGROUND SYNC LOOP
 # ============================================================
+# Uses find + --files-from for lightweight 30s incremental syncs.
+# Every hour (120 cycles), runs a full rclone sync to clean up
+# deleted/renamed files from R2.
 if r2_configured; then
     echo "Starting background R2 sync loop..."
     (
         MARKER=/tmp/.last-sync-marker
         LOGFILE=/tmp/r2-sync.log
+        DOTCONFIG_DIR="/root/.config"
+        CYCLE=0
         touch "$MARKER"
 
         while true; do
             sleep 30
+            CYCLE=$((CYCLE + 1))
 
-            CHANGED=/tmp/.changed-files
-            {
-                find "$CONFIG_DIR" -newer "$MARKER" -type f -printf '%P\n' 2>/dev/null
-                find "$WORKSPACE_DIR" -newer "$MARKER" \
-                    -not -path '*/node_modules/*' \
-                    -not -path '*/.git/*' \
-                    -type f -printf '%P\n' 2>/dev/null
-            } > "$CHANGED"
-
-            COUNT=$(wc -l < "$CHANGED" 2>/dev/null || echo 0)
-
-            if [ "$COUNT" -gt 0 ]; then
-                echo "[sync] Uploading changes ($COUNT files) at $(date)" >> "$LOGFILE"
+            if [ $((CYCLE % 120)) -eq 0 ]; then
+                # ── HOURLY: full rclone sync (cleans up deleted files from R2) ──
+                echo "[sync] Full sync at $(date)" >> "$LOGFILE"
                 rclone sync "$CONFIG_DIR/" "r2:${R2_BUCKET}/openclaw/" \
-                    $RCLONE_FLAGS --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' --exclude='.git/**' 2>> "$LOGFILE"
-                if [ -d "$WORKSPACE_DIR" ]; then
-                    rclone sync "$WORKSPACE_DIR/" "r2:${R2_BUCKET}/workspace/" \
-                        $RCLONE_FLAGS --exclude='skills/**' --exclude='.git/**' --exclude='node_modules/**' 2>> "$LOGFILE"
-                fi
-                if [ -d "$SKILLS_DIR" ]; then
-                    rclone sync "$SKILLS_DIR/" "r2:${R2_BUCKET}/skills/" \
-                        $RCLONE_FLAGS 2>> "$LOGFILE"
-                fi
-                date -Iseconds > "$LAST_SYNC_FILE"
+                    $RCLONE_FLAGS --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' 2>> "$LOGFILE"
+                rclone sync "$WORKSPACE_DIR/" "r2:${R2_BUCKET}/workspace/" \
+                    $RCLONE_FLAGS --exclude='skills/**' --exclude='.git/**' --exclude='node_modules/**' \
+                    --exclude='.agent-browser/**' --exclude='google-cloud-sdk/**' 2>> "$LOGFILE"
+                rclone sync "$SKILLS_DIR/" "r2:${R2_BUCKET}/skills/" \
+                    $RCLONE_FLAGS 2>> "$LOGFILE"
+                rclone sync "$DOTCONFIG_DIR/" "r2:${R2_BUCKET}/dot-config/" \
+                    $RCLONE_FLAGS \
+                    --exclude='rclone/**' \
+                    --exclude='chromium/**/Cache/**' \
+                    --exclude='chromium/**/Code Cache/**' \
+                    --exclude='chromium/**/GPUCache/**' \
+                    --exclude='chromium/**/Service Worker/CacheStorage/**' \
+                    --exclude='google-chrome/**/Cache/**' \
+                    --exclude='google-chrome/**/Code Cache/**' \
+                    --exclude='google-chrome/**/GPUCache/**' 2>> "$LOGFILE"
                 touch "$MARKER"
-                echo "[sync] Complete at $(date)" >> "$LOGFILE"
+                echo "[sync] Full sync complete at $(date)" >> "$LOGFILE"
+            else
+                # ── INCREMENTAL: find changed files + rclone copy --files-from ──
+                CHANGED_CONFIG=/tmp/.changed-config
+                CHANGED_WORKSPACE=/tmp/.changed-workspace
+                CHANGED_SKILLS=/tmp/.changed-skills
+                CHANGED_DOTCONFIG=/tmp/.changed-dotconfig
+
+                find "$CONFIG_DIR" -newer "$MARKER" -type f \
+                    -not -name '*.lock' -not -name '*.log' -not -name '*.tmp' \
+                    -printf '%P\n' 2>/dev/null > "$CHANGED_CONFIG"
+                find "$WORKSPACE_DIR" -newer "$MARKER" -type f \
+                    -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/skills/*' \
+                    -not -path '*/.agent-browser/*' -not -path '*/google-cloud-sdk/*' \
+                    -printf '%P\n' 2>/dev/null > "$CHANGED_WORKSPACE"
+                find "$SKILLS_DIR" -newer "$MARKER" -type f \
+                    -printf '%P\n' 2>/dev/null > "$CHANGED_SKILLS"
+                find "$DOTCONFIG_DIR" -newer "$MARKER" -type f \
+                    -not -path '*/rclone/*' \
+                    -not -path '*/Cache/*' -not -path '*/Code Cache/*' \
+                    -not -path '*/GPUCache/*' -not -path '*/Service Worker/CacheStorage/*' \
+                    -printf '%P\n' 2>/dev/null > "$CHANGED_DOTCONFIG"
+
+                TOTAL=$(cat "$CHANGED_CONFIG" "$CHANGED_WORKSPACE" "$CHANGED_SKILLS" "$CHANGED_DOTCONFIG" 2>/dev/null | wc -l)
+
+                if [ "$TOTAL" -gt 0 ]; then
+                    echo "[sync] Incremental upload ($TOTAL files) at $(date)" >> "$LOGFILE"
+                    [ -s "$CHANGED_CONFIG" ] && rclone copy "$CONFIG_DIR/" "r2:${R2_BUCKET}/openclaw/" \
+                        --files-from="$CHANGED_CONFIG" $RCLONE_FLAGS 2>> "$LOGFILE"
+                    [ -s "$CHANGED_WORKSPACE" ] && rclone copy "$WORKSPACE_DIR/" "r2:${R2_BUCKET}/workspace/" \
+                        --files-from="$CHANGED_WORKSPACE" $RCLONE_FLAGS 2>> "$LOGFILE"
+                    [ -s "$CHANGED_SKILLS" ] && rclone copy "$SKILLS_DIR/" "r2:${R2_BUCKET}/skills/" \
+                        --files-from="$CHANGED_SKILLS" $RCLONE_FLAGS 2>> "$LOGFILE"
+                    [ -s "$CHANGED_DOTCONFIG" ] && rclone copy "$DOTCONFIG_DIR/" "r2:${R2_BUCKET}/dot-config/" \
+                        --files-from="$CHANGED_DOTCONFIG" $RCLONE_FLAGS 2>> "$LOGFILE"
+                    echo "[sync] Incremental complete at $(date)" >> "$LOGFILE"
+                fi
+                touch "$MARKER"
+                date -Iseconds > "$LAST_SYNC_FILE"
             fi
         done
     ) &
