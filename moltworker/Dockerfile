@@ -25,11 +25,15 @@ RUN npm install -g pnpm
 
 # Install OpenClaw (formerly clawdbot/moltbot)
 # Pin to specific version for reproducible builds
-RUN npm install -g openclaw@2026.4.7 \
+RUN npm install -g openclaw@2026.4.8 \
     && openclaw --version
 
-# Install gws CLI (Google Workspace) and agent-browser
-RUN npm install -g @googleworkspace/cli agent-browser
+# Install agent-browser
+RUN npm install -g agent-browser
+
+# Install gws CLI (Google Workspace) — use musl binary for GLIBC 2.35 compatibility
+RUN curl -fsSL https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-x86_64-unknown-linux-musl.tar.gz \
+    | tar xz -C /usr/local/bin/
 
 # Install Chrome for Testing (baked into image, no download at runtime)
 RUN agent-browser install

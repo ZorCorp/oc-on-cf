@@ -376,15 +376,21 @@ cd {WORK_DIR}
 npm run deploy
 ```
 
-Takes 3-5 minutes on first run (Docker build + push + deploy). Ensure Docker is running.
+Takes 5-15 minutes on first run (Docker build + push + deploy). Ensure Docker is running.
 
-## Step 8: Set Telegram webhook
+## Step 8: Wait for container provisioning
+
+After deploy completes, wait **2 minutes** for Cloudflare to finish provisioning the container (pulling image, starting VM, initializing sandbox runtime). Do NOT attempt health checks or trigger the container during this time.
+
+```bash
+sleep 120
+```
+
+## Step 9: Set Telegram webhook and pair
 
 ```bash
 curl -s "https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={WORKER_URL}/telegram"
 ```
-
-## Step 9: Wait for container and pair Telegram
 
 1. Trigger container:
 ```bash

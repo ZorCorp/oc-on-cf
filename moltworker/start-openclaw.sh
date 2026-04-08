@@ -366,6 +366,17 @@ if r2_configured; then
 fi
 
 # ============================================================
+# LINK WORKSPACE SKILLS
+# ============================================================
+# OpenClaw looks for skills in ~/.openclaw/workspace/skills/
+# but we store them in /root/clawd/skills/ (baked into Docker image)
+if [ -d "$SKILLS_DIR" ] && [ ! -e "$CONFIG_DIR/workspace/skills" ]; then
+    mkdir -p "$CONFIG_DIR/workspace"
+    ln -s "$SKILLS_DIR" "$CONFIG_DIR/workspace/skills"
+    echo "Linked workspace skills: $SKILLS_DIR -> $CONFIG_DIR/workspace/skills"
+fi
+
+# ============================================================
 # START GATEWAY
 # ============================================================
 echo "Starting OpenClaw Gateway..."
