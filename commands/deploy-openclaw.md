@@ -168,6 +168,26 @@ Ask user:
 
 Store as `{NAME}`.
 
+### 0.10 GWS OAuth client_secret.json (required)
+
+Ask user:
+
+> Please provide the path to your `client_secret.json` file (downloaded from Google Cloud Console OAuth client).
+>
+> **If you haven't set this up yet**, follow `docs/admin-gcp-setup.md` first to create the OAuth client in Google Cloud Console. The output is a `client_secret.json` file.
+>
+> Once you have the file, give me the absolute path (e.g. `/Users/you/Downloads/client_secret_xxxxx.json`).
+
+Store as `{CLIENT_SECRET_PATH}`.
+
+Verify the file exists and is valid JSON:
+
+```bash
+test -f {CLIENT_SECRET_PATH} && python3 -c "import json; json.load(open('{CLIENT_SECRET_PATH}'))" && echo "OK"
+```
+
+If invalid or missing, tell the user to fix and provide again.
+
 ## Step 1: Derive variables
 
 ```bash
@@ -369,6 +389,14 @@ echo "{R2_ACCESS_KEY}" | wrangler secret put R2_ACCESS_KEY_ID
 echo "{R2_SECRET_KEY}" | wrangler secret put R2_SECRET_ACCESS_KEY
 ```
 
+### 6a. Set GWS OAuth client_secret (required for gws CLI)
+
+```bash
+cat {CLIENT_SECRET_PATH} | wrangler secret put GWS_CLIENT_SECRET_JSON
+```
+
+This makes `gws auth login` work inside the container (user authentication flow happens later, guided by `docs/user-gws-login.md`).
+
 ## Step 7: Deploy
 
 ```bash
@@ -418,37 +446,74 @@ curl -s --max-time 15 "{WORKER_URL}/debug/cli?cmd=openclaw+pairing+approve+teleg
 
 ## Final output
 
-Open both pages for the user:
+Deployment is complete. Now instruct the admin to help the user through three steps:
+
+### A. Telegram pairing (already done in Step 9)
+
+The admin approved the user's pairing code via `openclaw pairing approve telegram`.
+The Telegram bot should now respond to the user's messages.
+
+### B. OpenClaw Dashboard pairing
+
+Open the dashboard and admin panel for the user:
 
 ```bash
 open "{WORKER_URL}/"
 open "{WORKER_URL}/_admin/"
 ```
 
-Then tell user:
+Tell the admin:
 
-> ✅ **OpenClaw Bot deployed!**
+> **Step B: Help user pair the OpenClaw Dashboard**
 >
-> I've opened two pages for you. Follow these steps to connect:
+> 1. Ask user to open `{WORKER_URL}/`
+> 2. User pastes Gateway Token into 「網關令牌」field:
+>    ```
+>    {GATEWAY_TOKEN}
+>    ```
+> 3. User clicks 「連接」 — sees "Pairing required"
+> 4. Admin opens `{WORKER_URL}/_admin/`
+> 5. Under **Pending Pairing Requests** → click **Refresh** → **Approve**
+> 6. User goes back to Dashboard → should be connected
 >
-> **Step 1.** Go to the **Dashboard** page (`{WORKER_URL}/`)
-> - Paste this Gateway Token into the "網關令牌" field:
->   `{GATEWAY_TOKEN}`
-> - Click **"連接"**
-> - It will show "Pairing required" — this is normal
+> **Save Gateway Token for user**: `{GATEWAY_TOKEN}`
+
+### C. Google Workspace login (gws auth login)
+
+Tell the admin:
+
+> **Step C: Send the user this prompt** to paste into the bot
 >
-> **Step 2.** Go to the **Admin Panel** page (`{WORKER_URL}/_admin/`)
-> - Click **"Refresh"** next to Pending Pairing Requests
-> - You will see a **Pending Pairing Request** appear
-> - Click **"Approve"** (or **"Approve All"**)
+> Open `docs/user-gws-login.md` and copy the entire prompt block (the large markdown code block).
 >
-> **Step 3.** Go back to the **Dashboard** page
-> - It should now be connected!
+> Give it to the user with these instructions:
 >
-> **Save this Gateway Token for later:**
-> `{GATEWAY_TOKEN}`
+> > "Paste the following message to the bot (via Telegram or OpenClaw Dashboard). The bot will guide you through Google login automatically. You may be asked to:
+> > - type your Google email and password
+> > - approve on your phone (2-step verification)
+> > - click Allow on the consent page"
 >
-> Your Telegram bot is also ready — send it a message to start chatting!
+> When the user pastes the prompt, the bot's agent will:
+> 1. Open Google sign-in with a persistent profile
+> 2. Fill email / password (from user input)
+> 3. Prompt user to complete 2FA on trusted device
+> 4. Run `gws auth login` with the required scopes
+> 5. Open the OAuth consent URL and click Allow
+> 6. Wait for automatic localhost callback
+> 7. Verify with `gws drive files list`
+>
+> Credentials are saved inside the container and automatically backed up to R2.
+
+### Summary
+
+> ✅ **OpenClaw Bot deployed at `{WORKER_URL}`**
+>
+> Next steps for admin:
+> - **A.** Telegram pairing: done
+> - **B.** Dashboard pairing: help user enter Gateway Token + approve in admin panel
+> - **C.** gws login: send user the prompt from `docs/user-gws-login.md`
+>
+> **Gateway Token**: `{GATEWAY_TOKEN}`
 
 ## Troubleshooting
 

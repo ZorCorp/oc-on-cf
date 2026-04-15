@@ -55,5 +55,8 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.R2_SECRET_ACCESS_KEY) envVars.R2_SECRET_ACCESS_KEY = env.R2_SECRET_ACCESS_KEY;
   if (env.R2_BUCKET_NAME) envVars.R2_BUCKET_NAME = env.R2_BUCKET_NAME;
 
+  // gws OAuth client config (for `gws auth login` flow)
+  if (env.GWS_CLIENT_SECRET_JSON) envVars.GWS_CLIENT_SECRET_JSON = env.GWS_CLIENT_SECRET_JSON;
+
   return envVars;
 }

@@ -42,6 +42,8 @@ export interface MoltbotEnv {
   BROWSER?: Fetcher;
   CDP_SECRET?: string; // Shared secret for CDP endpoint authentication
   WORKER_URL?: string; // Public URL of the worker (for CDP endpoint)
+  // gws OAuth client config (Admin pre-creates in GCP, shared across users)
+  GWS_CLIENT_SECRET_JSON?: string; // OAuth client_secret.json from Google Cloud Console
 }
 
 /**

@@ -378,6 +378,19 @@ if [ -d "$SKILLS_DIR" ] && [ ! -e "$CONFIG_DIR/workspace/skills" ]; then
 fi
 
 # ============================================================
+# GWS OAUTH CLIENT SECRET
+# ============================================================
+# Admin pre-creates OAuth client in GCP, stores client_secret.json as Worker Secret.
+# Container writes it to ~/.config/gws/ so `gws auth login` knows which OAuth app to use.
+if [ -n "$GWS_CLIENT_SECRET_JSON" ]; then
+    mkdir -p /root/.config/gws
+    GWS_CLIENT_FILE=/root/.config/gws/client_secret.json
+    echo "$GWS_CLIENT_SECRET_JSON" > "$GWS_CLIENT_FILE"
+    chmod 600 "$GWS_CLIENT_FILE"
+    echo "gws: client_secret.json written to $GWS_CLIENT_FILE"
+fi
+
+# ============================================================
 # START GATEWAY
 # ============================================================
 echo "Starting OpenClaw Gateway..."
